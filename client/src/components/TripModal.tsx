@@ -1,0 +1,349 @@
+import React, { useState, useEffect } from 'react';
+import { X, Plane, Plus, Trash2, MapPin, Calendar, Users, AlertCircle } from 'lucide-react';
+import { Trip } from '../types';
+import { api } from '../api/client';
+
+interface TripModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  onSaved: (trip: Trip) => void;
+  tripToEdit?: Trip | null;
+}
+
+export const TripModal: React.FC<TripModalProps> = ({
+  isOpen,
+  onClose,
+  onSaved,
+  tripToEdit,
+}) => {
+  const [name, setName] = useState('');
+  const [startDate, setStartDate] = useState('');
+  const [endDate, setEndDate] = useState('');
+  const [travelersCount, setTravelersCount] = useState(1);
+  const [notes, setNotes] = useState('');
+  const [destinations, setDestinations] = useState<{ name: string; country?: string }[]>([]);
+  const [newDestName, setNewDestName] = useState('');
+  const [newDestCountry, setNewDestCountry] = useState('');
+
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (tripToEdit) {
+      setName(tripToEdit.name);
+      setStartDate(
+        typeof tripToEdit.start_date === 'string'
+          ? tripToEdit.start_date.split('T')[0]
+          : new Date(tripToEdit.start_date).toISOString().split('T')[0]
+      );
+      setEndDate(
+        typeof tripToEdit.end_date === 'string'
+          ? tripToEdit.end_date.split('T')[0]
+          : new Date(tripToEdit.end_date).toISOString().split('T')[0]
+      );
+      setTravelersCount(tripToEdit.travelers_count || 1);
+      setNotes(tripToEdit.notes || '');
+      setDestinations(
+        (tripToEdit.destinations || []).map((d) => ({
+          name: d.name,
+          country: d.country || '',
+        }))
+      );
+    } else {
+      const today = new Date().toISOString().split('T')[0];
+      const nextWeek = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
+        .toISOString()
+        .split('T')[0];
+      setName('');
+      setStartDate(today);
+      setEndDate(nextWeek);
+      setTravelersCount(1);
+      setNotes('');
+      setDestinations([]);
+    }
+    setNewDestName('');
+    setNewDestCountry('');
+    setError(null);
+  }, [tripToEdit, isOpen]);
+
+  if (!isOpen) return null;
+
+  const handleAddDestination = () => {
+    if (!newDestName.trim()) return;
+    setDestinations([
+      ...destinations,
+      { name: newDestName.trim(), country: newDestCountry.trim() || undefined },
+    ]);
+    setNewDestName('');
+    setNewDestCountry('');
+  };
+
+  const handleRemoveDestination = (index: number) => {
+    setDestinations(destinations.filter((_, i) => i !== index));
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!name.trim()) {
+      setError('Please enter a trip name.');
+      return;
+    }
+    if (!startDate || !endDate) {
+      setError('Please provide valid start and end dates.');
+      return;
+    }
+    if (new Date(endDate) < new Date(startDate)) {
+      setError('End date cannot be earlier than start date.');
+      return;
+    }
+
+    // Include pending destination if typed in input
+    let finalDestinations = [...destinations];
+    if (newDestName.trim()) {
+      finalDestinations.push({
+        name: newDestName.trim(),
+        country: newDestCountry.trim() || undefined,
+      });
+    }
+
+    setLoading(true);
+    setError(null);
+
+    try {
+      const payload = {
+        name: name.trim(),
+        start_date: startDate,
+        end_date: endDate,
+        travelers_count: Math.max(1, travelersCount),
+        notes: notes.trim(),
+        destinations: finalDestinations,
+      };
+
+      let saved: Trip;
+      if (tripToEdit && tripToEdit.id) {
+        saved = await api.updateTrip(tripToEdit.id, payload);
+      } else {
+        saved = await api.createTrip(payload);
+      }
+
+      onSaved(saved);
+      onClose();
+    } catch (err: any) {
+      setError(err.message || 'Failed to save trip');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+        <div className="modal-header">
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+            <div
+              style={{
+                width: 34,
+                height: 34,
+                borderRadius: '8px',
+                background: 'var(--brand-gradient)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                color: 'white',
+              }}
+            >
+              <Plane size={18} />
+            </div>
+            <h3>{tripToEdit ? 'Edit Trip' : 'Create New Trip'}</h3>
+          </div>
+          <button className="btn-icon" onClick={onClose} aria-label="Close">
+            <X size={20} />
+          </button>
+        </div>
+
+        <form onSubmit={handleSubmit}>
+          <div className="modal-body">
+            {error && (
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.5rem',
+                  padding: '0.75rem 1rem',
+                  borderRadius: 'var(--radius-md)',
+                  background: 'rgba(239, 68, 68, 0.12)',
+                  border: '1px solid rgba(239, 68, 68, 0.3)',
+                  color: 'var(--status-danger)',
+                  marginBottom: '1rem',
+                  fontSize: '0.875rem',
+                }}
+              >
+                <AlertCircle size={18} />
+                <span>{error}</span>
+              </div>
+            )}
+
+            {/* Trip Name */}
+            <div className="form-group">
+              <label className="form-label">Trip Name *</label>
+              <input
+                type="text"
+                className="form-input"
+                placeholder="e.g. Europe Vacation 2026, Kashmir Winter Trip"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                required
+                autoFocus
+              />
+            </div>
+
+            {/* Dates */}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+              <div className="form-group">
+                <label className="form-label">Start Date *</label>
+                <input
+                  type="date"
+                  className="form-input"
+                  value={startDate}
+                  onChange={(e) => setStartDate(e.target.value)}
+                  required
+                />
+              </div>
+
+              <div className="form-group">
+                <label className="form-label">End Date *</label>
+                <input
+                  type="date"
+                  className="form-input"
+                  value={endDate}
+                  onChange={(e) => setEndDate(e.target.value)}
+                  required
+                />
+              </div>
+            </div>
+
+            {/* Number of Travelers */}
+            <div className="form-group">
+              <label className="form-label">Number of Travelers</label>
+              <input
+                type="number"
+                min="1"
+                max="50"
+                className="form-input"
+                value={travelersCount}
+                onChange={(e) => setTravelersCount(parseInt(e.target.value, 10) || 1)}
+              />
+            </div>
+
+            {/* Destinations Section */}
+            <div className="form-group">
+              <label className="form-label">
+                Destinations / Cities (Supports multiple)
+              </label>
+              <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.5rem' }}>
+                <input
+                  type="text"
+                  className="form-input"
+                  placeholder="City / Destination (e.g. Paris)"
+                  value={newDestName}
+                  onChange={(e) => setNewDestName(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      handleAddDestination();
+                    }
+                  }}
+                />
+                <input
+                  type="text"
+                  className="form-input"
+                  style={{ width: '130px' }}
+                  placeholder="Country"
+                  value={newDestCountry}
+                  onChange={(e) => setNewDestCountry(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      handleAddDestination();
+                    }
+                  }}
+                />
+                <button
+                  type="button"
+                  className="btn btn-secondary"
+                  onClick={handleAddDestination}
+                  title="Add Destination"
+                >
+                  <Plus size={16} />
+                </button>
+              </div>
+
+              {/* Destination Pills List */}
+              {destinations.length > 0 ? (
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.4rem' }}>
+                  {destinations.map((d, index) => (
+                    <span
+                      key={index}
+                      style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '0.35rem',
+                        padding: '0.35rem 0.65rem',
+                        background: 'var(--brand-primary-light)',
+                        border: '1px solid rgba(59, 130, 246, 0.3)',
+                        borderRadius: 'var(--radius-full)',
+                        fontSize: '0.8rem',
+                        color: 'var(--brand-primary)',
+                        fontWeight: 600,
+                      }}
+                    >
+                      <MapPin size={13} />
+                      {d.name} {d.country ? `(${d.country})` : ''}
+                      <button
+                        type="button"
+                        onClick={() => handleRemoveDestination(index)}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          marginLeft: '2px',
+                          color: 'var(--text-muted)',
+                        }}
+                      >
+                        <X size={13} />
+                      </button>
+                    </span>
+                  ))}
+                </div>
+              ) : (
+                <p style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>
+                  No destinations added yet. Type above and click "+" or press Enter.
+                </p>
+              )}
+            </div>
+
+            {/* Notes */}
+            <div className="form-group" style={{ marginBottom: 0 }}>
+              <label className="form-label">Notes</label>
+              <textarea
+                className="form-textarea"
+                placeholder="Trip highlights, planned itinerary, hotel details..."
+                value={notes}
+                onChange={(e) => setNotes(e.target.value)}
+                rows={2}
+              />
+            </div>
+          </div>
+
+          <div className="modal-footer">
+            <button type="button" className="btn btn-secondary" onClick={onClose} disabled={loading}>
+              Cancel
+            </button>
+            <button type="submit" className="btn btn-primary" disabled={loading}>
+              {loading ? 'Saving...' : tripToEdit ? 'Update Trip' : 'Create Trip'}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+};
