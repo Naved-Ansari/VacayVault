@@ -11,6 +11,7 @@ export interface Trip {
   start_date: string;
   end_date: string;
   travelers_count: number;
+  trip_type: 'single' | 'multi';
   notes?: string;
   created_at?: string;
   total_spent_inr?: number;

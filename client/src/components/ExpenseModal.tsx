@@ -1,7 +1,8 @@
-import React, { useState, useEffect } from 'react';
-import { X, IndianRupee, Sparkles, AlertCircle } from 'lucide-react';
+import React, { useState, useEffect, useRef } from 'react';
+import { X, IndianRupee, Sparkles, AlertCircle, CheckCircle2 } from 'lucide-react';
 import { Trip, Category, FamilyMember, Expense } from '../types';
 import { api } from '../api/client';
+import { toDateInputValue } from '../utils/dateUtils';
 
 interface ExpenseModalProps {
   isOpen: boolean;
@@ -50,7 +51,7 @@ export const ExpenseModal: React.FC<ExpenseModalProps> = ({
   const [currency, setCurrency] = useState('INR');
   const [customRate, setCustomRate] = useState<string>('');
   const [showRateOverride, setShowRateOverride] = useState(false);
-  const [expenseDate, setExpenseDate] = useState(new Date().toISOString().split('T')[0]);
+  const [expenseDate, setExpenseDate] = useState(toDateInputValue(new Date()));
   const [categoryId, setCategoryId] = useState<number | ''>('');
   const [subcategoryId, setSubcategoryId] = useState<number | ''>('');
   const [paidByMemberId, setPaidByMemberId] = useState<number | ''>('');
@@ -59,6 +60,8 @@ export const ExpenseModal: React.FC<ExpenseModalProps> = ({
   const [ratesMap, setRatesMap] = useState<Record<string, number>>({});
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const nameInputRef = useRef<HTMLInputElement | null>(null);
 
   // Fetch exchange rates on open
   useEffect(() => {
@@ -71,6 +74,7 @@ export const ExpenseModal: React.FC<ExpenseModalProps> = ({
 
   // Pre-fill form when editing or resetting
   useEffect(() => {
+    setSuccessMessage(null);
     if (expenseToEdit) {
       setTripId(expenseToEdit.trip_id);
       setDestinationId(expenseToEdit.destination_id || '');
@@ -78,26 +82,35 @@ export const ExpenseModal: React.FC<ExpenseModalProps> = ({
       setAmount(String(expenseToEdit.amount));
       setCurrency(expenseToEdit.currency || 'INR');
       setCustomRate(String(expenseToEdit.exchange_rate_to_inr || ''));
-      setExpenseDate(
-        typeof expenseToEdit.expense_date === 'string'
-          ? expenseToEdit.expense_date.split('T')[0]
-          : new Date(expenseToEdit.expense_date).toISOString().split('T')[0]
-      );
+      setExpenseDate(toDateInputValue(expenseToEdit.expense_date));
       setCategoryId(expenseToEdit.category_id || '');
       setSubcategoryId(expenseToEdit.subcategory_id || '');
       setPaidByMemberId(expenseToEdit.paid_by_member_id || '');
       setComment(expenseToEdit.comment || '');
     } else {
       // New expense defaults
-      const chosenTrip = defaultTripId || (trips.length > 0 ? trips[0].id : '');
-      setTripId(chosenTrip);
-      setDestinationId('');
+      const chosenTripId = defaultTripId || (trips.length > 0 ? trips[0].id : '');
+      setTripId(chosenTripId);
+
+      // Auto-prepopulate destination if single destination trip
+      const chosenTrip = trips.find((t) => t.id === Number(chosenTripId));
+      if (
+        chosenTrip &&
+        chosenTrip.trip_type === 'single' &&
+        chosenTrip.destinations &&
+        chosenTrip.destinations.length > 0
+      ) {
+        setDestinationId(chosenTrip.destinations[0].id || '');
+      } else {
+        setDestinationId('');
+      }
+
       setName('');
       setAmount('');
       setCurrency('INR');
       setCustomRate('');
       setShowRateOverride(false);
-      setExpenseDate(new Date().toISOString().split('T')[0]);
+      setExpenseDate(toDateInputValue(new Date()));
       setCategoryId(categories.length > 0 ? categories[0].id : '');
       setSubcategoryId('');
       setPaidByMemberId(members.length > 0 ? members[0].id : '');
@@ -164,12 +177,23 @@ export const ExpenseModal: React.FC<ExpenseModalProps> = ({
 
       if (expenseToEdit && expenseToEdit.id) {
         await api.updateExpense(expenseToEdit.id, payload);
+        onSaved();
+        onClose();
       } else {
         await api.createExpense(payload);
+        // Trigger background refresh immediately
+        onSaved();
+        // Show success banner and keep popup open for rapid entry
+        const inrFormatted = (numAmount * activeRate).toLocaleString('en-IN', { maximumFractionDigits: 2 });
+        setSuccessMessage(`✓ Expense "${name.trim()}" (${currency} ${numAmount} = ₹${inrFormatted}) added successfully! Add another below or click Close.`);
+        // Reset only expense-specific fields, retaining trip, destination, currency, date, category, and paidBy!
+        setName('');
+        setAmount('');
+        setComment('');
+        setTimeout(() => {
+          nameInputRef.current?.focus();
+        }, 50);
       }
-
-      onSaved();
-      onClose();
     } catch (err: any) {
       setError(err.message || 'Failed to save expense');
     } finally {
@@ -205,6 +229,38 @@ export const ExpenseModal: React.FC<ExpenseModalProps> = ({
 
         <form onSubmit={handleSubmit}>
           <div className="modal-body">
+            {successMessage && (
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  gap: '0.75rem',
+                  padding: '0.75rem 1rem',
+                  borderRadius: 'var(--radius-md)',
+                  background: 'rgba(16, 185, 129, 0.15)',
+                  border: '1px solid rgba(16, 185, 129, 0.35)',
+                  color: '#10B981',
+                  marginBottom: '1rem',
+                  fontSize: '0.875rem',
+                  fontWeight: 500,
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                  <CheckCircle2 size={18} />
+                  <span>{successMessage}</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setSuccessMessage(null)}
+                  style={{ background: 'none', border: 'none', color: '#10B981', cursor: 'pointer', padding: '2px' }}
+                  aria-label="Dismiss success message"
+                >
+                  <X size={15} />
+                </button>
+              </div>
+            )}
+
             {error && (
               <div
                 style={{
@@ -233,8 +289,19 @@ export const ExpenseModal: React.FC<ExpenseModalProps> = ({
                   className="form-select"
                   value={tripId}
                   onChange={(e) => {
-                    setTripId(e.target.value ? Number(e.target.value) : '');
-                    setDestinationId('');
+                    const newTripId = e.target.value ? Number(e.target.value) : '';
+                    setTripId(newTripId);
+                    const selected = trips.find((t) => t.id === newTripId);
+                    if (
+                      selected &&
+                      selected.trip_type === 'single' &&
+                      selected.destinations &&
+                      selected.destinations.length > 0
+                    ) {
+                      setDestinationId(selected.destinations[0].id || '');
+                    } else {
+                      setDestinationId('');
+                    }
                   }}
                   required
                 >
@@ -268,11 +335,15 @@ export const ExpenseModal: React.FC<ExpenseModalProps> = ({
             <div className="form-group">
               <label className="form-label">Expense Name *</label>
               <input
+                ref={nameInputRef}
                 type="text"
                 className="form-input"
                 placeholder="e.g. Louvre Museum Tickets, Dinner at Bistro"
                 value={name}
-                onChange={(e) => setName(e.target.value)}
+                onChange={(e) => {
+                  setName(e.target.value);
+                  if (error) setError(null);
+                }}
                 required
                 autoFocus
               />
@@ -467,10 +538,10 @@ export const ExpenseModal: React.FC<ExpenseModalProps> = ({
 
           <div className="modal-footer">
             <button type="button" className="btn btn-secondary" onClick={onClose} disabled={loading}>
-              Cancel
+              {expenseToEdit ? 'Cancel' : 'Close'}
             </button>
             <button type="submit" className="btn btn-primary" disabled={loading}>
-              {loading ? 'Saving...' : expenseToEdit ? 'Update Expense' : 'Save Expense'}
+              {loading ? 'Saving...' : expenseToEdit ? 'Update Expense' : 'Add Expense'}
             </button>
           </div>
         </form>

@@ -6,6 +6,7 @@ CREATE TABLE IF NOT EXISTS trips (
     start_date DATE NOT NULL,
     end_date DATE NOT NULL,
     travelers_count INT DEFAULT 1,
+    trip_type VARCHAR(10) NOT NULL DEFAULT 'multi' CHECK (trip_type IN ('single', 'multi')),
     notes TEXT,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP

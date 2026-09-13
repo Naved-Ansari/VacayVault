@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { X, Plane, Plus, Trash2, MapPin, Calendar, Users, AlertCircle } from 'lucide-react';
 import { Trip } from '../types';
 import { api } from '../api/client';
+import { toDateInputValue } from '../utils/dateUtils';
 
 interface TripModalProps {
   isOpen: boolean;
@@ -20,6 +21,7 @@ export const TripModal: React.FC<TripModalProps> = ({
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
   const [travelersCount, setTravelersCount] = useState(1);
+  const [tripType, setTripType] = useState<'single' | 'multi'>('multi');
   const [notes, setNotes] = useState('');
   const [destinations, setDestinations] = useState<{ name: string; country?: string }[]>([]);
   const [newDestName, setNewDestName] = useState('');
@@ -31,17 +33,10 @@ export const TripModal: React.FC<TripModalProps> = ({
   useEffect(() => {
     if (tripToEdit) {
       setName(tripToEdit.name);
-      setStartDate(
-        typeof tripToEdit.start_date === 'string'
-          ? tripToEdit.start_date.split('T')[0]
-          : new Date(tripToEdit.start_date).toISOString().split('T')[0]
-      );
-      setEndDate(
-        typeof tripToEdit.end_date === 'string'
-          ? tripToEdit.end_date.split('T')[0]
-          : new Date(tripToEdit.end_date).toISOString().split('T')[0]
-      );
+      setStartDate(toDateInputValue(tripToEdit.start_date));
+      setEndDate(toDateInputValue(tripToEdit.end_date));
       setTravelersCount(tripToEdit.travelers_count || 1);
+      setTripType(tripToEdit.trip_type || 'multi');
       setNotes(tripToEdit.notes || '');
       setDestinations(
         (tripToEdit.destinations || []).map((d) => ({
@@ -58,6 +53,7 @@ export const TripModal: React.FC<TripModalProps> = ({
       setStartDate(today);
       setEndDate(nextWeek);
       setTravelersCount(1);
+      setTripType('multi');
       setNotes('');
       setDestinations([]);
     }
@@ -70,16 +66,29 @@ export const TripModal: React.FC<TripModalProps> = ({
 
   const handleAddDestination = () => {
     if (!newDestName.trim()) return;
-    setDestinations([
-      ...destinations,
-      { name: newDestName.trim(), country: newDestCountry.trim() || undefined },
-    ]);
+    // For single destination trips, replace the destination instead of adding
+    if (tripType === 'single') {
+      setDestinations([{ name: newDestName.trim(), country: newDestCountry.trim() || undefined }]);
+    } else {
+      setDestinations([
+        ...destinations,
+        { name: newDestName.trim(), country: newDestCountry.trim() || undefined },
+      ]);
+    }
     setNewDestName('');
     setNewDestCountry('');
   };
 
   const handleRemoveDestination = (index: number) => {
     setDestinations(destinations.filter((_, i) => i !== index));
+  };
+
+  const handleTripTypeChange = (type: 'single' | 'multi') => {
+    setTripType(type);
+    // If switching to single and there are multiple destinations, keep only the first
+    if (type === 'single' && destinations.length > 1) {
+      setDestinations([destinations[0]]);
+    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -100,10 +109,14 @@ export const TripModal: React.FC<TripModalProps> = ({
     // Include pending destination if typed in input
     let finalDestinations = [...destinations];
     if (newDestName.trim()) {
-      finalDestinations.push({
-        name: newDestName.trim(),
-        country: newDestCountry.trim() || undefined,
-      });
+      if (tripType === 'single') {
+        finalDestinations = [{ name: newDestName.trim(), country: newDestCountry.trim() || undefined }];
+      } else {
+        finalDestinations.push({
+          name: newDestName.trim(),
+          country: newDestCountry.trim() || undefined,
+        });
+      }
     }
 
     setLoading(true);
@@ -115,6 +128,7 @@ export const TripModal: React.FC<TripModalProps> = ({
         start_date: startDate,
         end_date: endDate,
         travelers_count: Math.max(1, travelersCount),
+        trip_type: tripType,
         notes: notes.trim(),
         destinations: finalDestinations,
       };
@@ -235,48 +249,105 @@ export const TripModal: React.FC<TripModalProps> = ({
               />
             </div>
 
+            {/* Trip Type Toggle */}
+            <div className="form-group">
+              <label className="form-label">Destination Type</label>
+              <div style={{ display: 'flex', gap: '0.5rem' }}>
+                <button
+                  type="button"
+                  onClick={() => handleTripTypeChange('single')}
+                  style={{
+                    flex: 1,
+                    padding: '0.65rem 1rem',
+                    borderRadius: 'var(--radius-md)',
+                    border: `2px solid ${tripType === 'single' ? 'var(--brand-primary)' : 'var(--border-subtle)'}`,
+                    background: tripType === 'single' ? 'var(--brand-primary-light)' : 'transparent',
+                    color: tripType === 'single' ? 'var(--brand-primary)' : 'var(--text-secondary)',
+                    fontWeight: 600,
+                    fontSize: '0.875rem',
+                    cursor: 'pointer',
+                    transition: 'all 0.15s ease',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '0.4rem',
+                  }}
+                >
+                  <MapPin size={15} />
+                  Single Destination
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleTripTypeChange('multi')}
+                  style={{
+                    flex: 1,
+                    padding: '0.65rem 1rem',
+                    borderRadius: 'var(--radius-md)',
+                    border: `2px solid ${tripType === 'multi' ? 'var(--brand-primary)' : 'var(--border-subtle)'}`,
+                    background: tripType === 'multi' ? 'var(--brand-primary-light)' : 'transparent',
+                    color: tripType === 'multi' ? 'var(--brand-primary)' : 'var(--text-secondary)',
+                    fontWeight: 600,
+                    fontSize: '0.875rem',
+                    cursor: 'pointer',
+                    transition: 'all 0.15s ease',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '0.4rem',
+                  }}
+                >
+                  <MapPin size={15} />
+                  Multi Destination
+                </button>
+              </div>
+            </div>
+
             {/* Destinations Section */}
             <div className="form-group">
               <label className="form-label">
-                Destinations / Cities (Supports multiple)
+                {tripType === 'single' ? 'Destination' : 'Destinations / Cities (Supports multiple)'}
               </label>
-              <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.5rem' }}>
-                <input
-                  type="text"
-                  className="form-input"
-                  placeholder="City / Destination (e.g. Paris)"
-                  value={newDestName}
-                  onChange={(e) => setNewDestName(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') {
-                      e.preventDefault();
-                      handleAddDestination();
-                    }
-                  }}
-                />
-                <input
-                  type="text"
-                  className="form-input"
-                  style={{ width: '130px' }}
-                  placeholder="Country"
-                  value={newDestCountry}
-                  onChange={(e) => setNewDestCountry(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') {
-                      e.preventDefault();
-                      handleAddDestination();
-                    }
-                  }}
-                />
-                <button
-                  type="button"
-                  className="btn btn-secondary"
-                  onClick={handleAddDestination}
-                  title="Add Destination"
-                >
-                  <Plus size={16} />
-                </button>
-              </div>
+
+              {/* Show input only if single with no destination, or if multi */}
+              {(tripType === 'multi' || destinations.length === 0) && (
+                <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.5rem' }}>
+                  <input
+                    type="text"
+                    className="form-input"
+                    placeholder={tripType === 'single' ? 'e.g. Goa, Manali' : 'City / Destination (e.g. Paris)'}
+                    value={newDestName}
+                    onChange={(e) => setNewDestName(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        handleAddDestination();
+                      }
+                    }}
+                  />
+                  <input
+                    type="text"
+                    className="form-input"
+                    style={{ width: '130px' }}
+                    placeholder="Country"
+                    value={newDestCountry}
+                    onChange={(e) => setNewDestCountry(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        handleAddDestination();
+                      }
+                    }}
+                  />
+                  <button
+                    type="button"
+                    className="btn btn-secondary"
+                    onClick={handleAddDestination}
+                    title="Add Destination"
+                  >
+                    <Plus size={16} />
+                  </button>
+                </div>
+              )}
 
               {/* Destination Pills List */}
               {destinations.length > 0 ? (

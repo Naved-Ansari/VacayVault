@@ -13,6 +13,7 @@ import {
 import { Trip } from '../types';
 import { api } from '../api/client';
 import { ConfirmModal } from '../components/ConfirmModal';
+import { formatDate } from '../utils/dateUtils';
 
 interface TripsProps {
   trips: Trip[];
@@ -61,7 +62,7 @@ export const Trips: React.FC<TripsProps> = ({
         </div>
         <button className="btn btn-primary" onClick={onOpenCreateTrip}>
           <Plus size={18} strokeWidth={2.5} />
-          <span>+ Create Trip</span>
+          <span>Create Trip</span>
         </button>
       </div>
 
@@ -69,16 +70,8 @@ export const Trips: React.FC<TripsProps> = ({
       {trips.length > 0 ? (
         <div className="trips-grid">
           {trips.map((trip) => {
-            const startDate = new Date(trip.start_date).toLocaleDateString('en-IN', {
-              day: 'numeric',
-              month: 'short',
-              year: 'numeric',
-            });
-            const endDate = new Date(trip.end_date).toLocaleDateString('en-IN', {
-              day: 'numeric',
-              month: 'short',
-              year: 'numeric',
-            });
+            const startDate = formatDate(trip.start_date);
+            const endDate = formatDate(trip.end_date);
 
             return (
               <div

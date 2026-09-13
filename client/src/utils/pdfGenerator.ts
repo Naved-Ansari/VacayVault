@@ -1,6 +1,7 @@
 import jsPDF from 'jspdf';
 import 'jspdf-autotable';
 import { Expense, Trip } from '../types';
+import { formatDate } from './dateUtils';
 
 interface GenerateReportOptions {
   title: string;
@@ -68,9 +69,7 @@ export function generateExpenseReportPdf({
     doc.setFontSize(9);
     doc.setTextColor(71, 85, 105);
 
-    const dates = `${new Date(trip.start_date).toLocaleDateString('en-IN')} to ${new Date(
-      trip.end_date
-    ).toLocaleDateString('en-IN')}`;
+    const dates = `${formatDate(trip.start_date)} to ${formatDate(trip.end_date)}`;
     const dests =
       trip.destinations && trip.destinations.length > 0
         ? trip.destinations.map((d) => d.name).join(', ')
@@ -182,9 +181,7 @@ export function generateExpenseReportPdf({
   currentY += 4;
 
   const expenseRows = expenses.map((e) => {
-    const formattedDate = typeof e.expense_date === 'string'
-      ? e.expense_date.split('T')[0]
-      : new Date(e.expense_date).toISOString().split('T')[0];
+    const formattedDate = formatDate(e.expense_date);
     
     const origAmount = `${e.currency} ${parseFloat(String(e.amount)).toLocaleString('en-IN', {
       maximumFractionDigits: 2,

@@ -14,21 +14,22 @@ import {
 import { Expense, Trip, Category, FamilyMember } from '../types';
 import { api } from '../api/client';
 import { ConfirmModal } from '../components/ConfirmModal';
+import { formatDate } from '../utils/dateUtils';
 
 interface AllExpensesProps {
   trips: Trip[];
   categories: Category[];
   members: FamilyMember[];
-  onOpenAddExpense: () => void;
   onOpenEditExpense: (expense: Expense) => void;
+  refreshTrigger?: number;
 }
 
 export const AllExpenses: React.FC<AllExpensesProps> = ({
   trips,
   categories,
   members,
-  onOpenAddExpense,
   onOpenEditExpense,
+  refreshTrigger,
 }) => {
   const [expenses, setExpenses] = useState<Expense[]>([]);
   const [loading, setLoading] = useState(true);
@@ -62,7 +63,7 @@ export const AllExpenses: React.FC<AllExpensesProps> = ({
 
   useEffect(() => {
     loadExpenses();
-  }, [selectedTripId, selectedCategoryId, selectedMemberId, startDate, endDate]);
+  }, [selectedTripId, selectedCategoryId, selectedMemberId, startDate, endDate, refreshTrigger]);
 
   // Debounced search
   useEffect(() => {
@@ -121,10 +122,6 @@ export const AllExpenses: React.FC<AllExpensesProps> = ({
             Search, filter, and review all travel expenditures across all your trips
           </p>
         </div>
-        <button className="btn btn-primary" onClick={onOpenAddExpense}>
-          <Plus size={18} strokeWidth={2.5} />
-          <span>+ Add Expense</span>
-        </button>
       </div>
 
       {/* Filter Toolbar Card */}
@@ -296,11 +293,7 @@ export const AllExpenses: React.FC<AllExpensesProps> = ({
                       </span>
                     </td>
                     <td style={{ color: 'var(--text-secondary)', fontSize: '0.85rem' }}>
-                      {new Date(exp.expense_date).toLocaleDateString('en-IN', {
-                        day: 'numeric',
-                        month: 'short',
-                        year: 'numeric',
-                      })}
+                      {formatDate(exp.expense_date)}
                     </td>
                     <td>
                       <span className="dest-text">{exp.destination_name || '-'}</span>

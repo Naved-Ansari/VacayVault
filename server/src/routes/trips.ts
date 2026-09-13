@@ -13,6 +13,7 @@ router.get('/', async (req: Request, res: Response) => {
         t.start_date,
         t.end_date,
         t.travelers_count,
+        t.trip_type,
         t.notes,
         t.created_at,
         COALESCE(SUM(e.amount_inr), 0) AS total_spent_inr,
@@ -133,9 +134,17 @@ router.get('/:id', async (req: Request, res: Response) => {
     // 7. Daily spending timeline
     const dailySpending: Record<string, number> = {};
     for (const exp of expRes.rows) {
-      const dateStr = typeof exp.expense_date === 'string' 
-        ? exp.expense_date.split('T')[0] 
-        : new Date(exp.expense_date).toISOString().split('T')[0];
+      let dateStr = '';
+      if (typeof exp.expense_date === 'string') {
+        dateStr = exp.expense_date.split('T')[0];
+      } else if (exp.expense_date instanceof Date) {
+        const y = exp.expense_date.getFullYear();
+        const m = String(exp.expense_date.getMonth() + 1).padStart(2, '0');
+        const d = String(exp.expense_date.getDate()).padStart(2, '0');
+        dateStr = `${y}-${m}-${d}`;
+      } else {
+        dateStr = String(exp.expense_date).split('T')[0];
+      }
       dailySpending[dateStr] = (dailySpending[dateStr] || 0) + parseFloat(exp.amount_inr || 0);
     }
     trip.daily_spending = Object.entries(dailySpending)
@@ -151,7 +160,7 @@ router.get('/:id', async (req: Request, res: Response) => {
 
 // CREATE a new trip
 router.post('/', async (req: Request, res: Response) => {
-  const { name, start_date, end_date, travelers_count, notes, destinations } = req.body;
+  const { name, start_date, end_date, travelers_count, trip_type, notes, destinations } = req.body;
   if (!name || !start_date || !end_date) {
     return res.status(400).json({ error: 'Name, start date, and end date are required' });
   }
@@ -161,10 +170,10 @@ router.post('/', async (req: Request, res: Response) => {
     await client.query('BEGIN');
 
     const tripRes = await client.query(
-      `INSERT INTO trips (name, start_date, end_date, travelers_count, notes)
-       VALUES ($1, $2, $3, $4, $5)
+      `INSERT INTO trips (name, start_date, end_date, travelers_count, trip_type, notes)
+       VALUES ($1, $2, $3, $4, $5, $6)
        RETURNING *`,
-      [name, start_date, end_date, travelers_count || 1, notes || '']
+      [name, start_date, end_date, travelers_count || 1, trip_type || 'multi', notes || '']
     );
     const newTrip = tripRes.rows[0];
 
@@ -201,7 +210,7 @@ router.post('/', async (req: Request, res: Response) => {
 // UPDATE a trip
 router.put('/:id', async (req: Request, res: Response) => {
   const tripId = parseInt(req.params.id, 10);
-  const { name, start_date, end_date, travelers_count, notes, destinations } = req.body;
+  const { name, start_date, end_date, travelers_count, trip_type, notes, destinations } = req.body;
 
   if (isNaN(tripId)) {
     return res.status(400).json({ error: 'Invalid trip ID' });
@@ -213,10 +222,10 @@ router.put('/:id', async (req: Request, res: Response) => {
 
     const tripRes = await client.query(
       `UPDATE trips 
-       SET name = $1, start_date = $2, end_date = $3, travelers_count = $4, notes = $5, updated_at = CURRENT_TIMESTAMP
-       WHERE id = $6
+       SET name = $1, start_date = $2, end_date = $3, travelers_count = $4, trip_type = $5, notes = $6, updated_at = CURRENT_TIMESTAMP
+       WHERE id = $7
        RETURNING *`,
-      [name, start_date, end_date, travelers_count || 1, notes || '', tripId]
+      [name, start_date, end_date, travelers_count || 1, trip_type || 'multi', notes || '', tripId]
     );
 
     if (tripRes.rows.length === 0) {

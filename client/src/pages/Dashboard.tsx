@@ -15,19 +15,20 @@ import { StatCard } from '../components/StatCard';
 import { CategoryDoughnutChart, DestinationBarChart } from '../components/Charts';
 import { DashboardData, Trip } from '../types';
 import { api } from '../api/client';
+import { formatDate } from '../utils/dateUtils';
 
 interface DashboardProps {
-  onOpenAddExpense: () => void;
   onOpenCreateTrip: () => void;
   onSelectTrip: (tripId: number) => void;
   onNavigate: (tab: string) => void;
+  refreshTrigger?: number;
 }
 
 export const Dashboard: React.FC<DashboardProps> = ({
-  onOpenAddExpense,
   onOpenCreateTrip,
   onSelectTrip,
   onNavigate,
+  refreshTrigger,
 }) => {
   const [data, setData] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -45,7 +46,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
 
   useEffect(() => {
     loadData();
-  }, []);
+  }, [refreshTrigger]);
 
   if (loading) {
     return (
@@ -75,13 +76,9 @@ export const Dashboard: React.FC<DashboardProps> = ({
           </p>
         </div>
         <div className="welcome-actions">
-          <button className="btn btn-primary" onClick={onOpenAddExpense}>
-            <Plus size={18} strokeWidth={2.5} />
-            <span>+ Add Expense</span>
-          </button>
-          <button className="btn btn-secondary" onClick={onOpenCreateTrip}>
+          <button className="btn btn-primary" onClick={onOpenCreateTrip}>
             <Plane size={18} />
-            <span>+ New Trip</span>
+            <span>Create Trip</span>
           </button>
         </div>
       </div>
@@ -161,7 +158,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
                     <div className="trip-meta">
                       <span className="meta-tag">
                         <Calendar size={13} />
-                        {new Date(trip.start_date).toLocaleDateString('en-IN', {
+                        {formatDate(trip.start_date, {
                           month: 'short',
                           year: 'numeric',
                         })}
@@ -221,7 +218,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
                       <h4 className="expense-title">{exp.name}</h4>
                       <span className="expense-sub">
                         {exp.trip_name} •{' '}
-                        {new Date(exp.expense_date).toLocaleDateString('en-IN', {
+                        {formatDate(exp.expense_date, {
                           day: 'numeric',
                           month: 'short',
                         })}
@@ -243,7 +240,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
               ))
             ) : (
               <div className="empty-state">
-                <p>No expenses logged yet. Click "+ Add Expense" to record one!</p>
+                <p>No expenses logged yet. Select a trip to add your first expense!</p>
               </div>
             )}
           </div>

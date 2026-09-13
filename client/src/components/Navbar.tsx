@@ -19,7 +19,7 @@ import { useTheme } from '../context/ThemeContext';
 interface NavbarProps {
   activeTab: string;
   setActiveTab: (tab: string) => void;
-  onOpenAddExpense: () => void;
+  onOpenAddExpense?: () => void;
 }
 
 export const Navbar: React.FC<NavbarProps> = ({
@@ -79,16 +79,6 @@ export const Navbar: React.FC<NavbarProps> = ({
 
         {/* Right Actions */}
         <div className="navbar-actions">
-          {/* Quick Add Expense Button */}
-          <button
-            onClick={onOpenAddExpense}
-            className="btn btn-primary quick-add-btn"
-            title="Add a new expense"
-          >
-            <Plus size={18} strokeWidth={2.5} />
-            <span>+ Add Expense</span>
-          </button>
-
           {/* Theme Toggle */}
           <button
             onClick={toggleTheme}
@@ -114,17 +104,6 @@ export const Navbar: React.FC<NavbarProps> = ({
       {mobileMenuOpen && (
         <div className="mobile-drawer">
           <div className="mobile-drawer-content">
-            <button
-              onClick={() => {
-                setMobileMenuOpen(false);
-                onOpenAddExpense();
-              }}
-              className="btn btn-primary mobile-add-btn"
-            >
-              <Plus size={18} strokeWidth={2.5} />
-              <span>+ Add Expense</span>
-            </button>
-
             <div className="mobile-nav-list">
               {navItems.map((item) => {
                 const Icon = item.icon;

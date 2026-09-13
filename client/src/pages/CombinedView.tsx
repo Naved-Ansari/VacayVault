@@ -14,7 +14,11 @@ import { api } from '../api/client';
 import { StatCard } from '../components/StatCard';
 import { CategoryDoughnutChart, DestinationBarChart } from '../components/Charts';
 
-export const CombinedView: React.FC = () => {
+interface CombinedViewProps {
+  refreshTrigger?: number;
+}
+
+export const CombinedView: React.FC<CombinedViewProps> = ({ refreshTrigger }) => {
   const [data, setData] = useState<CombinedData | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -32,7 +36,7 @@ export const CombinedView: React.FC = () => {
 
   useEffect(() => {
     loadData();
-  }, []);
+  }, [refreshTrigger]);
 
   if (loading) {
     return (

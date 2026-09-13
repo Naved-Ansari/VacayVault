@@ -13,14 +13,16 @@ import {
 import { Trip, Category, FamilyMember, Expense } from '../types';
 import { api } from '../api/client';
 import { generateExpenseReportPdf } from '../utils/pdfGenerator';
+import { formatDate } from '../utils/dateUtils';
 
 interface ReportsProps {
   trips: Trip[];
   categories: Category[];
   members: FamilyMember[];
+  refreshTrigger?: number;
 }
 
-export const Reports: React.FC<ReportsProps> = ({ trips, categories, members }) => {
+export const Reports: React.FC<ReportsProps> = ({ trips, categories, members, refreshTrigger }) => {
   const [selectedTripId, setSelectedTripId] = useState<string>('all');
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [selectedMember, setSelectedMember] = useState<string>('all');
@@ -51,7 +53,7 @@ export const Reports: React.FC<ReportsProps> = ({ trips, categories, members }) 
     };
 
     fetchFiltered();
-  }, [selectedTripId, selectedCategory, selectedMember, startDate, endDate]);
+  }, [selectedTripId, selectedCategory, selectedMember, startDate, endDate, refreshTrigger]);
 
   const selectedTripObj =
     selectedTripId !== 'all'
@@ -234,11 +236,7 @@ export const Reports: React.FC<ReportsProps> = ({ trips, categories, members }) 
                 {matchingExpenses.map((e) => (
                   <tr key={e.id}>
                     <td>
-                      {new Date(e.expense_date).toLocaleDateString('en-IN', {
-                        day: 'numeric',
-                        month: 'short',
-                        year: 'numeric',
-                      })}
+                      {formatDate(e.expense_date)}
                     </td>
                     <td style={{ fontWeight: 600 }}>{e.name}</td>
                     <td>{e.trip_name}</td>

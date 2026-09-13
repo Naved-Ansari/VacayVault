@@ -19,14 +19,16 @@ import { api } from '../api/client';
 import { CategoryDoughnutChart, DestinationBarChart, DailyTrendLineChart } from '../components/Charts';
 import { generateExpenseReportPdf } from '../utils/pdfGenerator';
 import { ConfirmModal } from '../components/ConfirmModal';
+import { formatDate } from '../utils/dateUtils';
 
 interface TripDetailsProps {
   tripId: number;
   onBack: () => void;
-  onOpenAddExpense: (tripId: number) => void;
+  onOpenAddExpense: (tripId?: number) => void;
   onOpenEditExpense: (expense: Expense) => void;
   onOpenEditTrip: (trip: Trip) => void;
   onDeleteTrip?: (tripId: number) => void;
+  refreshTrigger?: number;
 }
 
 export const TripDetails: React.FC<TripDetailsProps> = ({
@@ -36,6 +38,7 @@ export const TripDetails: React.FC<TripDetailsProps> = ({
   onOpenEditExpense,
   onOpenEditTrip,
   onDeleteTrip,
+  refreshTrigger,
 }) => {
   const [trip, setTrip] = useState<Trip | null>(null);
   const [loading, setLoading] = useState(true);
@@ -57,7 +60,7 @@ export const TripDetails: React.FC<TripDetailsProps> = ({
 
   useEffect(() => {
     loadTrip();
-  }, [tripId]);
+  }, [tripId, refreshTrigger]);
 
   const [confirmDeleteTrip, setConfirmDeleteTrip] = useState(false);
   const [isDeletingTrip, setIsDeletingTrip] = useState(false);
@@ -151,16 +154,8 @@ export const TripDetails: React.FC<TripDetailsProps> = ({
       maximumFractionDigits: 2,
     })}`;
 
-  const startDateStr = new Date(trip.start_date).toLocaleDateString('en-IN', {
-    day: 'numeric',
-    month: 'short',
-    year: 'numeric',
-  });
-  const endDateStr = new Date(trip.end_date).toLocaleDateString('en-IN', {
-    day: 'numeric',
-    month: 'short',
-    year: 'numeric',
-  });
+  const startDateStr = formatDate(trip.start_date);
+  const endDateStr = formatDate(trip.end_date);
 
   // Unique categories in this trip for filter dropdown
   const uniqueCategories = Array.from(
@@ -180,6 +175,10 @@ export const TripDetails: React.FC<TripDetailsProps> = ({
         </button>
 
         <div className="top-actions">
+          <button className="btn btn-primary btn-sm" onClick={() => onOpenAddExpense(trip.id)}>
+            <Plus size={16} />
+            <span>Add Expense</span>
+          </button>
           <button className="btn btn-secondary btn-sm" onClick={handleExportPdf}>
             <FileDown size={16} />
             <span>Export PDF</span>
@@ -196,13 +195,6 @@ export const TripDetails: React.FC<TripDetailsProps> = ({
           >
             <Trash2 size={16} />
             <span>Delete Trip</span>
-          </button>
-          <button
-            className="btn btn-primary btn-sm"
-            onClick={() => onOpenAddExpense(trip.id)}
-          >
-            <Plus size={16} strokeWidth={2.5} />
-            <span>+ Add Expense</span>
           </button>
         </div>
       </div>
@@ -245,13 +237,6 @@ export const TripDetails: React.FC<TripDetailsProps> = ({
           <span className="total-label">Total Trip Expenses</span>
           <h2 className="total-val">{formatInr(trip.total_spent_inr || 0)}</h2>
           <span className="total-count">{(trip.expenses || []).length} expense items recorded</span>
-          <button
-            className="btn btn-primary add-expense-cta"
-            onClick={() => onOpenAddExpense(trip.id)}
-          >
-            <Plus size={16} strokeWidth={2.5} />
-            <span>+ Add Expense</span>
-          </button>
         </div>
       </div>
 
@@ -337,6 +322,15 @@ export const TripDetails: React.FC<TripDetailsProps> = ({
                 ))}
               </select>
             )}
+
+            <button
+              className="btn btn-primary btn-sm"
+              onClick={() => onOpenAddExpense(trip.id)}
+              style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem', whiteSpace: 'nowrap' }}
+            >
+              <Plus size={15} />
+              <span>Add Expense</span>
+            </button>
           </div>
         </div>
 
@@ -377,7 +371,7 @@ export const TripDetails: React.FC<TripDetailsProps> = ({
                       </span>
                     </td>
                     <td style={{ color: 'var(--text-secondary)', fontSize: '0.85rem' }}>
-                      {new Date(exp.expense_date).toLocaleDateString('en-IN', {
+                      {formatDate(exp.expense_date, {
                         day: 'numeric',
                         month: 'short',
                       })}
@@ -450,11 +444,12 @@ export const TripDetails: React.FC<TripDetailsProps> = ({
           <div className="empty-expenses">
             <p>No matching expenses found.</p>
             <button
-              className="btn btn-primary btn-sm"
+              className="btn btn-primary"
               onClick={() => onOpenAddExpense(trip.id)}
-              style={{ marginTop: '0.5rem' }}
+              style={{ marginTop: '0.75rem', display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}
             >
-              <Plus size={16} /> + Add Expense
+              <Plus size={16} />
+              <span>Add Expense</span>
             </button>
           </div>
         )}

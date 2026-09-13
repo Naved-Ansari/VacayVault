@@ -38,6 +38,7 @@ export const App: React.FC = () => {
 
   const [memberModalOpen, setMemberModalOpen] = useState(false);
   const [memberToEdit, setMemberToEdit] = useState<FamilyMember | null>(null);
+  const [dataVersion, setDataVersion] = useState(0);
 
   const refreshAllData = async () => {
     try {
@@ -52,6 +53,11 @@ export const App: React.FC = () => {
     } catch (err) {
       console.error('Failed to fetch initial application data:', err);
     }
+  };
+
+  const handleDataChanged = async () => {
+    await refreshAllData();
+    setDataVersion((v) => v + 1);
   };
 
   useEffect(() => {
@@ -100,24 +106,24 @@ export const App: React.FC = () => {
           if (tab === 'trips') setSelectedTripId(null);
           setActiveTab(tab);
         }}
-        onOpenAddExpense={() => handleOpenAddExpense()}
+        onOpenAddExpense={() => handleOpenAddExpense(selectedTripId || undefined)}
       />
 
       {/* Main Content Area */}
       <main className="main-content">
         {activeTab === 'dashboard' && (
           <Dashboard
-            onOpenAddExpense={() => handleOpenAddExpense()}
             onOpenCreateTrip={handleOpenCreateTrip}
             onSelectTrip={handleSelectTrip}
             onNavigate={(tab) => setActiveTab(tab)}
+            refreshTrigger={dataVersion}
           />
         )}
 
         {activeTab === 'trips' && (
           <Trips
             trips={trips}
-            onRefresh={refreshAllData}
+            onRefresh={handleDataChanged}
             onOpenCreateTrip={handleOpenCreateTrip}
             onOpenEditTrip={handleOpenEditTrip}
             onSelectTrip={handleSelectTrip}
@@ -132,9 +138,10 @@ export const App: React.FC = () => {
             onOpenEditExpense={handleOpenEditExpense}
             onOpenEditTrip={handleOpenEditTrip}
             onDeleteTrip={async () => {
-              await refreshAllData();
+              await handleDataChanged();
               handleBackToTrips();
             }}
+            refreshTrigger={dataVersion}
           />
         )}
 
@@ -143,15 +150,15 @@ export const App: React.FC = () => {
             trips={trips}
             categories={categories}
             members={members}
-            onOpenAddExpense={() => handleOpenAddExpense()}
             onOpenEditExpense={handleOpenEditExpense}
+            refreshTrigger={dataVersion}
           />
         )}
 
         {activeTab === 'categories' && (
           <Categories
             categories={categories}
-            onRefresh={refreshAllData}
+            onRefresh={handleDataChanged}
             onOpenCreateCategory={() => {
               setCategoryToEdit(null);
               setCategoryModalOpen(true);
@@ -166,7 +173,7 @@ export const App: React.FC = () => {
         {activeTab === 'members' && (
           <FamilyMembers
             members={members}
-            onRefresh={refreshAllData}
+            onRefresh={handleDataChanged}
             onOpenCreateMember={() => {
               setMemberToEdit(null);
               setMemberModalOpen(true);
@@ -179,7 +186,7 @@ export const App: React.FC = () => {
         )}
 
         {activeTab === 'reports' && (
-          <Reports trips={trips} categories={categories} members={members} />
+          <Reports trips={trips} categories={categories} members={members} refreshTrigger={dataVersion} />
         )}
 
         {activeTab === 'settings' && <Settings />}
@@ -189,7 +196,7 @@ export const App: React.FC = () => {
       <ExpenseModal
         isOpen={expenseModalOpen}
         onClose={() => setExpenseModalOpen(false)}
-        onSaved={refreshAllData}
+        onSaved={handleDataChanged}
         expenseToEdit={expenseToEdit}
         defaultTripId={expenseDefaultTripId}
         trips={trips}
@@ -201,7 +208,7 @@ export const App: React.FC = () => {
         isOpen={tripModalOpen}
         onClose={() => setTripModalOpen(false)}
         onSaved={(saved) => {
-          refreshAllData();
+          handleDataChanged();
           if (activeTab === 'trip-details' && selectedTripId === saved.id) {
             setSelectedTripId(saved.id);
           }
@@ -212,14 +219,14 @@ export const App: React.FC = () => {
       <CategoryModal
         isOpen={categoryModalOpen}
         onClose={() => setCategoryModalOpen(false)}
-        onSaved={refreshAllData}
+        onSaved={handleDataChanged}
         categoryToEdit={categoryToEdit}
       />
 
       <MemberModal
         isOpen={memberModalOpen}
         onClose={() => setMemberModalOpen(false)}
-        onSaved={refreshAllData}
+        onSaved={handleDataChanged}
         memberToEdit={memberToEdit}
       />
     </div>
