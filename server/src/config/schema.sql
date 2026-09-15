@@ -6,7 +6,7 @@ CREATE TABLE IF NOT EXISTS trips (
     start_date DATE NOT NULL,
     end_date DATE NOT NULL,
     travelers_count INT DEFAULT 1,
-    trip_type VARCHAR(10) NOT NULL DEFAULT 'multi' CHECK (trip_type IN ('single', 'multi')),
+    trip_type VARCHAR(10) NOT NULL DEFAULT 'single' CHECK (trip_type IN ('single', 'multi')),
     notes TEXT,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
@@ -59,6 +59,7 @@ CREATE TABLE IF NOT EXISTS expenses (
     subcategory_id INT REFERENCES subcategories(id) ON DELETE SET NULL,
     paid_by_member_id INT REFERENCES family_members(id) ON DELETE SET NULL,
     comment TEXT,
+    is_spread_across_trip BOOLEAN NOT NULL DEFAULT false,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );

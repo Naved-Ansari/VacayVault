@@ -49,12 +49,15 @@ export const api = {
   updateTrip: (id: number, data: Partial<Trip> & { destinations?: { name: string; country?: string }[] }) =>
     request<Trip>(`/trips/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
   deleteTrip: (id: number) => request<{ message: string; id: number }>(`/trips/${id}`, { method: 'DELETE' }),
+  getPreviousDestinations: () =>
+    request<{ name: string; country?: string; trips_count: number }[]>('/trips/destinations/list'),
 
   // Expenses
   getExpenses: (filters?: {
     trip_id?: number | string;
     category_id?: number | string;
     destination_id?: number | string;
+    destination_name?: string;
     paid_by_member_id?: number | string;
     start_date?: string;
     end_date?: string;

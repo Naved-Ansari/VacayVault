@@ -21,14 +21,25 @@ export const TripModal: React.FC<TripModalProps> = ({
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
   const [travelersCount, setTravelersCount] = useState(1);
-  const [tripType, setTripType] = useState<'single' | 'multi'>('multi');
+  const [tripType, setTripType] = useState<'single' | 'multi'>('single');
   const [notes, setNotes] = useState('');
   const [destinations, setDestinations] = useState<{ name: string; country?: string }[]>([]);
   const [newDestName, setNewDestName] = useState('');
   const [newDestCountry, setNewDestCountry] = useState('');
+  const [previousDestinations, setPreviousDestinations] = useState<
+    { name: string; country?: string; trips_count: number }[]
+  >([]);
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (isOpen) {
+      api.getPreviousDestinations()
+        .then(setPreviousDestinations)
+        .catch((e) => console.warn('Could not fetch previous destinations:', e));
+    }
+  }, [isOpen]);
 
   useEffect(() => {
     if (tripToEdit) {
@@ -36,7 +47,7 @@ export const TripModal: React.FC<TripModalProps> = ({
       setStartDate(toDateInputValue(tripToEdit.start_date));
       setEndDate(toDateInputValue(tripToEdit.end_date));
       setTravelersCount(tripToEdit.travelers_count || 1);
-      setTripType(tripToEdit.trip_type || 'multi');
+      setTripType(tripToEdit.trip_type || 'single');
       setNotes(tripToEdit.notes || '');
       setDestinations(
         (tripToEdit.destinations || []).map((d) => ({
@@ -53,7 +64,7 @@ export const TripModal: React.FC<TripModalProps> = ({
       setStartDate(today);
       setEndDate(nextWeek);
       setTravelersCount(1);
-      setTripType('multi');
+      setTripType('single');
       setNotes('');
       setDestinations([]);
     }
@@ -64,15 +75,39 @@ export const TripModal: React.FC<TripModalProps> = ({
 
   if (!isOpen) return null;
 
+  const handleSelectPreviousDest = (pd: { name: string; country?: string; trips_count: number }) => {
+    if (tripType === 'single') {
+      setDestinations([{ name: pd.name, country: pd.country || undefined }]);
+      if (!name) {
+        const year = startDate ? new Date(startDate).getFullYear() : new Date().getFullYear();
+        setName(`${pd.name} Vacation ${year}`);
+      }
+    } else {
+      setNewDestName(pd.name);
+      if (pd.country) setNewDestCountry(pd.country);
+    }
+  };
+
   const handleAddDestination = () => {
     if (!newDestName.trim()) return;
+    const trimmedName = newDestName.trim();
+    // Check if matching previous destination for auto country
+    const matched = previousDestinations.find(
+      (p) => p.name.toLowerCase() === trimmedName.toLowerCase()
+    );
+    const countryToUse = newDestCountry.trim() || matched?.country || undefined;
+
     // For single destination trips, replace the destination instead of adding
     if (tripType === 'single') {
-      setDestinations([{ name: newDestName.trim(), country: newDestCountry.trim() || undefined }]);
+      setDestinations([{ name: trimmedName, country: countryToUse }]);
+      if (!name) {
+        const year = startDate ? new Date(startDate).getFullYear() : new Date().getFullYear();
+        setName(`${trimmedName} Vacation ${year}`);
+      }
     } else {
       setDestinations([
         ...destinations,
-        { name: newDestName.trim(), country: newDestCountry.trim() || undefined },
+        { name: trimmedName, country: countryToUse },
       ]);
     }
     setNewDestName('');
@@ -310,84 +345,165 @@ export const TripModal: React.FC<TripModalProps> = ({
 
               {/* Show input only if single with no destination, or if multi */}
               {(tripType === 'multi' || destinations.length === 0) && (
-                <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.5rem' }}>
-                  <input
-                    type="text"
-                    className="form-input"
-                    placeholder={tripType === 'single' ? 'e.g. Goa, Manali' : 'City / Destination (e.g. Paris)'}
-                    value={newDestName}
-                    onChange={(e) => setNewDestName(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter') {
-                        e.preventDefault();
-                        handleAddDestination();
-                      }
-                    }}
-                  />
-                  <input
-                    type="text"
-                    className="form-input"
-                    style={{ width: '130px' }}
-                    placeholder="Country"
-                    value={newDestCountry}
-                    onChange={(e) => setNewDestCountry(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter') {
-                        e.preventDefault();
-                        handleAddDestination();
-                      }
-                    }}
-                  />
-                  <button
-                    type="button"
-                    className="btn btn-secondary"
-                    onClick={handleAddDestination}
-                    title="Add Destination"
-                  >
-                    <Plus size={16} />
-                  </button>
-                </div>
+                <>
+                  <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.35rem' }}>
+                    <input
+                      type="text"
+                      className="form-input"
+                      list="previous-dest-datalist"
+                      placeholder={tripType === 'single' ? 'e.g. Goa, Paris, Dubai' : 'City / Destination (e.g. Paris)'}
+                      value={newDestName}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        setNewDestName(val);
+                        const matched = previousDestinations.find(
+                          (p) => p.name.toLowerCase() === val.trim().toLowerCase()
+                        );
+                        if (matched && matched.country && !newDestCountry) {
+                          setNewDestCountry(matched.country);
+                        }
+                      }}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault();
+                          handleAddDestination();
+                        }
+                      }}
+                    />
+                    <datalist id="previous-dest-datalist">
+                      {previousDestinations.map((pd) => (
+                        <option key={pd.name} value={pd.name}>
+                          {pd.country ? `${pd.country} • ${pd.trips_count} vacation(s)` : `${pd.trips_count} vacation(s)`}
+                        </option>
+                      ))}
+                    </datalist>
+                    <input
+                      type="text"
+                      className="form-input"
+                      style={{ width: '130px' }}
+                      placeholder="Country"
+                      value={newDestCountry}
+                      onChange={(e) => setNewDestCountry(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault();
+                          handleAddDestination();
+                        }
+                      }}
+                    />
+                    <button
+                      type="button"
+                      className="btn btn-secondary"
+                      onClick={handleAddDestination}
+                      title="Add Destination"
+                    >
+                      <Plus size={16} />
+                    </button>
+                  </div>
+
+                  {/* Previous destinations quick-select pills */}
+                  {previousDestinations.length > 0 && destinations.length === 0 && (
+                    <div style={{ marginTop: '0.4rem', display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '0.35rem' }}>
+                      <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Previously visited:</span>
+                      {previousDestinations.slice(0, 6).map((pd) => (
+                        <button
+                          key={pd.name}
+                          type="button"
+                          onClick={() => handleSelectPreviousDest(pd)}
+                          style={{
+                            fontSize: '0.75rem',
+                            padding: '2px 8px',
+                            borderRadius: 'var(--radius-full)',
+                            border: '1px dashed var(--brand-primary)',
+                            background: 'transparent',
+                            color: 'var(--brand-primary)',
+                            cursor: 'pointer',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '3px',
+                          }}
+                          title={`Visited in ${pd.trips_count} previous vacation(s)`}
+                        >
+                          <MapPin size={10} />
+                          {pd.name}
+                          {pd.trips_count > 1 ? ` (${pd.trips_count}x)` : ''}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </>
               )}
 
               {/* Destination Pills List */}
               {destinations.length > 0 ? (
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.4rem' }}>
-                  {destinations.map((d, index) => (
-                    <span
-                      key={index}
-                      style={{
-                        display: 'inline-flex',
-                        alignItems: 'center',
-                        gap: '0.35rem',
-                        padding: '0.35rem 0.65rem',
-                        background: 'var(--brand-primary-light)',
-                        border: '1px solid rgba(59, 130, 246, 0.3)',
-                        borderRadius: 'var(--radius-full)',
-                        fontSize: '0.8rem',
-                        color: 'var(--brand-primary)',
-                        fontWeight: 600,
-                      }}
-                    >
-                      <MapPin size={13} />
-                      {d.name} {d.country ? `(${d.country})` : ''}
-                      <button
-                        type="button"
-                        onClick={() => handleRemoveDestination(index)}
+                <div>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.4rem' }}>
+                    {destinations.map((d, index) => (
+                      <span
+                        key={index}
                         style={{
-                          display: 'flex',
+                          display: 'inline-flex',
                           alignItems: 'center',
-                          marginLeft: '2px',
-                          color: 'var(--text-muted)',
+                          gap: '0.35rem',
+                          padding: '0.35rem 0.65rem',
+                          background: 'var(--brand-primary-light)',
+                          border: '1px solid rgba(59, 130, 246, 0.3)',
+                          borderRadius: 'var(--radius-full)',
+                          fontSize: '0.8rem',
+                          color: 'var(--brand-primary)',
+                          fontWeight: 600,
                         }}
                       >
-                        <X size={13} />
-                      </button>
-                    </span>
-                  ))}
+                        <MapPin size={13} />
+                        {d.name} {d.country ? `(${d.country})` : ''}
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveDestination(index)}
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            marginLeft: '2px',
+                            color: 'var(--text-muted)',
+                          }}
+                        >
+                          <X size={13} />
+                        </button>
+                      </span>
+                    ))}
+                  </div>
+
+                  {/* Repeat Destination Banner */}
+                  {(() => {
+                    const repeat = previousDestinations.find(
+                      (p) => p.name.toLowerCase() === destinations[0]?.name.toLowerCase()
+                    );
+                    if (!repeat) return null;
+                    return (
+                      <div
+                        style={{
+                          marginTop: '0.5rem',
+                          padding: '0.45rem 0.75rem',
+                          background: 'rgba(59, 130, 246, 0.08)',
+                          border: '1px solid rgba(59, 130, 246, 0.25)',
+                          borderRadius: 'var(--radius-sm)',
+                          fontSize: '0.78rem',
+                          color: 'var(--brand-primary)',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '0.4rem',
+                        }}
+                      >
+                        <MapPin size={13} />
+                        <span>
+                          <strong>Repeat Destination:</strong> You've taken {repeat.trips_count} previous vacation{repeat.trips_count > 1 ? 's' : ''} to {repeat.name}. This trip will be saved as a separate vacation.
+                        </span>
+                      </div>
+                    );
+                  })()}
                 </div>
               ) : (
-                <p style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>
-                  No destinations added yet. Type above and click "+" or press Enter.
+                <p style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginTop: '0.4rem' }}>
+                  No destinations added yet. Type above or pick a previously visited destination.
                 </p>
               )}
             </div>

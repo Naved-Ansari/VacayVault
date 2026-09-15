@@ -11,6 +11,7 @@ router.get('/', async (req: Request, res: Response) => {
       trip_id,
       category_id,
       destination_id,
+      destination_name,
       paid_by_member_id,
       start_date,
       end_date,
@@ -40,6 +41,7 @@ router.get('/', async (req: Request, res: Response) => {
         m.name AS paid_by_name,
         m.avatar_color AS paid_by_color,
         e.comment,
+        e.is_spread_across_trip,
         e.created_at,
         e.updated_at
       FROM expenses e
@@ -65,6 +67,10 @@ router.get('/', async (req: Request, res: Response) => {
     if (destination_id) {
       query += ` AND e.destination_id = $${paramIndex++}`;
       params.push(parseInt(destination_id as string, 10));
+    }
+    if (destination_name) {
+      query += ` AND LOWER(TRIM(d.name)) = LOWER(TRIM($${paramIndex++}))`;
+      params.push(destination_name);
     }
     if (paid_by_member_id) {
       query += ` AND e.paid_by_member_id = $${paramIndex++}`;
@@ -146,6 +152,7 @@ router.post('/', async (req: Request, res: Response) => {
     subcategory_id,
     paid_by_member_id,
     comment,
+    is_spread_across_trip = false,
   } = req.body;
 
   if (!trip_id || !name || amount === undefined || amount === null || !expense_date) {
@@ -175,9 +182,10 @@ router.post('/', async (req: Request, res: Response) => {
       INSERT INTO expenses (
         trip_id, destination_id, name, amount, currency, 
         exchange_rate_to_inr, amount_inr, expense_date, 
-        category_id, subcategory_id, paid_by_member_id, comment
+        category_id, subcategory_id, paid_by_member_id, comment,
+        is_spread_across_trip
       )
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
       RETURNING *
     `;
 
@@ -194,6 +202,7 @@ router.post('/', async (req: Request, res: Response) => {
       subcategory_id || null,
       paid_by_member_id || null,
       comment || '',
+      is_spread_across_trip ? true : false,
     ];
 
     const result = await pool.query(insertQuery, values);
@@ -246,6 +255,7 @@ router.put('/:id', async (req: Request, res: Response) => {
     subcategory_id,
     paid_by_member_id,
     comment,
+    is_spread_across_trip = false,
   } = req.body;
 
   try {
@@ -282,8 +292,9 @@ router.put('/:id', async (req: Request, res: Response) => {
         subcategory_id = $10,
         paid_by_member_id = $11,
         comment = $12,
+        is_spread_across_trip = $13,
         updated_at = CURRENT_TIMESTAMP
-      WHERE id = $13
+      WHERE id = $14
       RETURNING *
     `;
 
@@ -300,6 +311,7 @@ router.put('/:id', async (req: Request, res: Response) => {
       subcategory_id || null,
       paid_by_member_id || null,
       comment || '',
+      is_spread_across_trip ? true : false,
       expId,
     ];
 
@@ -373,9 +385,10 @@ router.post('/:id/duplicate', async (req: Request, res: Response) => {
       INSERT INTO expenses (
         trip_id, destination_id, name, amount, currency, 
         exchange_rate_to_inr, amount_inr, expense_date, 
-        category_id, subcategory_id, paid_by_member_id, comment
+        category_id, subcategory_id, paid_by_member_id, comment,
+        is_spread_across_trip
       )
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
       RETURNING id
     `;
 
@@ -392,6 +405,7 @@ router.post('/:id/duplicate', async (req: Request, res: Response) => {
       orig.subcategory_id,
       orig.paid_by_member_id,
       orig.comment,
+      orig.is_spread_across_trip || false,
     ];
 
     const result = await pool.query(insertQuery, values);

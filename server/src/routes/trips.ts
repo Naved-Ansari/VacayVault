@@ -37,6 +37,27 @@ router.get('/', async (req: Request, res: Response) => {
   }
 });
 
+// GET unique previous destinations across all trips (for reuse / autocomplete)
+router.get('/destinations/list', async (req: Request, res: Response) => {
+  try {
+    const query = `
+      SELECT 
+        TRIM(d.name) AS name,
+        COALESCE(MAX(d.country), '') AS country,
+        COUNT(DISTINCT d.trip_id) AS trips_count
+      FROM destinations d
+      WHERE TRIM(d.name) <> ''
+      GROUP BY LOWER(TRIM(d.name)), TRIM(d.name)
+      ORDER BY trips_count DESC, TRIM(d.name) ASC;
+    `;
+    const { rows } = await pool.query(query);
+    res.json(rows);
+  } catch (error) {
+    console.error('Error fetching destinations:', error);
+    res.status(500).json({ error: 'Failed to fetch destinations' });
+  }
+});
+
 // GET single trip by ID with detailed breakdown
 router.get('/:id', async (req: Request, res: Response) => {
   const tripId = parseInt(req.params.id, 10);
@@ -82,6 +103,7 @@ router.get('/:id', async (req: Request, res: Response) => {
         m.name AS paid_by_name,
         m.avatar_color AS paid_by_color,
         e.comment,
+        e.is_spread_across_trip,
         e.created_at
        FROM expenses e
        LEFT JOIN destinations d ON e.destination_id = d.id
@@ -132,23 +154,52 @@ router.get('/:id', async (req: Request, res: Response) => {
     trip.destination_breakdown = Object.values(destBreakdown).sort((a, b) => b.total - a.total);
 
     // 7. Daily spending timeline
+    // Generate all dates in the trip range
+    const tripStartStr = typeof trip.start_date === 'string' ? trip.start_date.split('T')[0] : String(trip.start_date).split('T')[0];
+    const tripEndStr = typeof trip.end_date === 'string' ? trip.end_date.split('T')[0] : String(trip.end_date).split('T')[0];
+    const tripStartParts = tripStartStr.split('-').map(Number);
+    const tripEndParts = tripEndStr.split('-').map(Number);
+    const tripStartDate = new Date(tripStartParts[0], tripStartParts[1] - 1, tripStartParts[2]);
+    const tripEndDate = new Date(tripEndParts[0], tripEndParts[1] - 1, tripEndParts[2]);
+    const totalTripDays = Math.max(1, Math.round((tripEndDate.getTime() - tripStartDate.getTime()) / (1000 * 60 * 60 * 24)) + 1);
+
+    // Build array of all trip date strings
+    const allTripDates: string[] = [];
+    for (let d = new Date(tripStartDate); d <= tripEndDate; d.setDate(d.getDate() + 1)) {
+      const y = d.getFullYear();
+      const m = String(d.getMonth() + 1).padStart(2, '0');
+      const dd = String(d.getDate()).padStart(2, '0');
+      allTripDates.push(`${y}-${m}-${dd}`);
+    }
+
     const dailySpending: Record<string, number> = {};
     for (const exp of expRes.rows) {
-      let dateStr = '';
-      if (typeof exp.expense_date === 'string') {
-        dateStr = exp.expense_date.split('T')[0];
-      } else if (exp.expense_date instanceof Date) {
-        const y = exp.expense_date.getFullYear();
-        const m = String(exp.expense_date.getMonth() + 1).padStart(2, '0');
-        const d = String(exp.expense_date.getDate()).padStart(2, '0');
-        dateStr = `${y}-${m}-${d}`;
+      const amountInr = parseFloat(exp.amount_inr || 0);
+
+      if (exp.is_spread_across_trip && totalTripDays > 1) {
+        // Distribute evenly across all trip days
+        const perDay = amountInr / totalTripDays;
+        for (const dateStr of allTripDates) {
+          dailySpending[dateStr] = (dailySpending[dateStr] || 0) + perDay;
+        }
       } else {
-        dateStr = String(exp.expense_date).split('T')[0];
+        // Normal: assign to the expense's own date
+        let dateStr = '';
+        if (typeof exp.expense_date === 'string') {
+          dateStr = exp.expense_date.split('T')[0];
+        } else if (exp.expense_date instanceof Date) {
+          const y = exp.expense_date.getFullYear();
+          const m = String(exp.expense_date.getMonth() + 1).padStart(2, '0');
+          const dd = String(exp.expense_date.getDate()).padStart(2, '0');
+          dateStr = `${y}-${m}-${dd}`;
+        } else {
+          dateStr = String(exp.expense_date).split('T')[0];
+        }
+        dailySpending[dateStr] = (dailySpending[dateStr] || 0) + amountInr;
       }
-      dailySpending[dateStr] = (dailySpending[dateStr] || 0) + parseFloat(exp.amount_inr || 0);
     }
     trip.daily_spending = Object.entries(dailySpending)
-      .map(([date, total]) => ({ date, total }))
+      .map(([date, total]) => ({ date, total: parseFloat(total.toFixed(2)) }))
       .sort((a, b) => a.date.localeCompare(b.date));
 
     res.json(trip);
@@ -173,7 +224,7 @@ router.post('/', async (req: Request, res: Response) => {
       `INSERT INTO trips (name, start_date, end_date, travelers_count, trip_type, notes)
        VALUES ($1, $2, $3, $4, $5, $6)
        RETURNING *`,
-      [name, start_date, end_date, travelers_count || 1, trip_type || 'multi', notes || '']
+      [name, start_date, end_date, travelers_count || 1, trip_type || 'single', notes || '']
     );
     const newTrip = tripRes.rows[0];
 
@@ -225,7 +276,7 @@ router.put('/:id', async (req: Request, res: Response) => {
        SET name = $1, start_date = $2, end_date = $3, travelers_count = $4, trip_type = $5, notes = $6, updated_at = CURRENT_TIMESTAMP
        WHERE id = $7
        RETURNING *`,
-      [name, start_date, end_date, travelers_count || 1, trip_type || 'multi', notes || '', tripId]
+      [name, start_date, end_date, travelers_count || 1, trip_type || 'single', notes || '', tripId]
     );
 
     if (tripRes.rows.length === 0) {

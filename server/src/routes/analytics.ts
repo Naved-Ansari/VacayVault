@@ -82,12 +82,14 @@ router.get('/dashboard', async (req: Request, res: Response) => {
     // 5. Spending by Destination across all vacations
     const destinationSpendingQuery = `
       SELECT 
-        COALESCE(d.name, 'General Trip Expenses') AS name,
+        COALESCE(TRIM(d.name), 'General Trip Expenses') AS name,
+        MAX(d.country) AS country,
         SUM(e.amount_inr) AS total,
+        COUNT(DISTINCT e.trip_id) AS trips_count,
         COUNT(e.id) AS count
       FROM expenses e
       LEFT JOIN destinations d ON e.destination_id = d.id
-      GROUP BY d.name
+      GROUP BY LOWER(TRIM(d.name)), TRIM(d.name)
       ORDER BY total DESC
       LIMIT 8;
     `;
@@ -107,7 +109,8 @@ router.get('/dashboard', async (req: Request, res: Response) => {
       destination_spending: destinationSpendingRes.rows.map(r => ({
         ...r,
         total: parseFloat(r.total),
-        count: parseInt(r.count, 10)
+        count: parseInt(r.count, 10),
+        trips_count: parseInt(r.trips_count || '1', 10),
       }))
     });
   } catch (error) {
@@ -166,15 +169,16 @@ router.get('/combined', async (req: Request, res: Response) => {
     // All destinations breakdown
     const destQuery = `
       SELECT 
-        COALESCE(d.name, 'Trip-wide / General') AS name,
-        d.country,
+        COALESCE(TRIM(d.name), 'Trip-wide / General') AS name,
+        COALESCE(MAX(d.country), '') AS country,
         SUM(e.amount_inr) AS total,
+        COUNT(DISTINCT t.id) AS trips_count,
         COUNT(e.id) AS count
       FROM expenses e
       JOIN trips t ON e.trip_id = t.id
       LEFT JOIN destinations d ON e.destination_id = d.id
       ${filterClause}
-      GROUP BY d.name, d.country
+      GROUP BY LOWER(TRIM(d.name)), TRIM(d.name)
       ORDER BY total DESC;
     `;
     const destRes = await pool.query(destQuery, params);
@@ -228,6 +232,7 @@ router.get('/combined', async (req: Request, res: Response) => {
         ...r,
         total: parseFloat(r.total),
         count: parseInt(r.count, 10),
+        trips_count: parseInt(r.trips_count || '1', 10),
       })),
       spending_trends: trendRes.rows.map(r => ({
         month_year: r.month_year,

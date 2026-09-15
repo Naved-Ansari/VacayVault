@@ -84,6 +84,7 @@ export interface Expense {
   paid_by_name?: string | null;
   paid_by_color?: string | null;
   comment?: string;
+  is_spread_across_trip?: boolean;
   created_at?: string;
 }
 

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { X, IndianRupee, Sparkles, AlertCircle, CheckCircle2 } from 'lucide-react';
+import { X, IndianRupee, Sparkles, AlertCircle, CheckCircle2, BedDouble } from 'lucide-react';
 import { Trip, Category, FamilyMember, Expense } from '../types';
 import { api } from '../api/client';
 import { toDateInputValue } from '../utils/dateUtils';
@@ -56,6 +56,7 @@ export const ExpenseModal: React.FC<ExpenseModalProps> = ({
   const [subcategoryId, setSubcategoryId] = useState<number | ''>('');
   const [paidByMemberId, setPaidByMemberId] = useState<number | ''>('');
   const [comment, setComment] = useState('');
+  const [isSpreadAcrossTrip, setIsSpreadAcrossTrip] = useState(false);
 
   const [ratesMap, setRatesMap] = useState<Record<string, number>>({});
   const [loading, setLoading] = useState(false);
@@ -87,6 +88,7 @@ export const ExpenseModal: React.FC<ExpenseModalProps> = ({
       setSubcategoryId(expenseToEdit.subcategory_id || '');
       setPaidByMemberId(expenseToEdit.paid_by_member_id || '');
       setComment(expenseToEdit.comment || '');
+      setIsSpreadAcrossTrip(!!expenseToEdit.is_spread_across_trip);
     } else {
       // New expense defaults
       const chosenTripId = defaultTripId || (trips.length > 0 ? trips[0].id : '');
@@ -111,7 +113,10 @@ export const ExpenseModal: React.FC<ExpenseModalProps> = ({
       setCustomRate('');
       setShowRateOverride(false);
       setExpenseDate(toDateInputValue(new Date()));
-      setCategoryId(categories.length > 0 ? categories[0].id : '');
+      const defaultCatId = categories.length > 0 ? categories[0].id : '';
+      setCategoryId(defaultCatId);
+      const defaultCat = categories.find((c) => c.id === Number(defaultCatId));
+      setIsSpreadAcrossTrip(defaultCat?.name?.toLowerCase().includes('accommodat') || false);
       setSubcategoryId('');
       setPaidByMemberId(members.length > 0 ? members[0].id : '');
       setComment('');
@@ -126,6 +131,7 @@ export const ExpenseModal: React.FC<ExpenseModalProps> = ({
   // Selected category's subcategories
   const currentCat = categories.find((c) => c.id === Number(categoryId));
   const subcategories = currentCat ? currentCat.subcategories : [];
+  const isAccommodation = currentCat?.name?.toLowerCase().includes('accommodat') || false;
 
   // Computed rate and converted amount in INR
   const activeRate =
@@ -173,6 +179,7 @@ export const ExpenseModal: React.FC<ExpenseModalProps> = ({
         subcategory_id: subcategoryId ? Number(subcategoryId) : null,
         paid_by_member_id: paidByMemberId ? Number(paidByMemberId) : null,
         comment: comment.trim(),
+        is_spread_across_trip: isAccommodation ? isSpreadAcrossTrip : false,
       };
 
       if (expenseToEdit && expenseToEdit.id) {
@@ -306,11 +313,14 @@ export const ExpenseModal: React.FC<ExpenseModalProps> = ({
                   required
                 >
                   <option value="">-- Select Trip --</option>
-                  {trips.map((t) => (
-                    <option key={t.id} value={t.id}>
-                      {t.name}
-                    </option>
-                  ))}
+                  {trips.map((t) => {
+                    const yearStr = t.start_date ? t.start_date.substring(0, 4) : '';
+                    return (
+                      <option key={t.id} value={t.id}>
+                        {t.name} {yearStr ? `(${yearStr})` : ''}
+                      </option>
+                    );
+                  })}
                 </select>
               </div>
 
@@ -467,8 +477,12 @@ export const ExpenseModal: React.FC<ExpenseModalProps> = ({
                   className="form-select"
                   value={categoryId}
                   onChange={(e) => {
-                    setCategoryId(e.target.value ? Number(e.target.value) : '');
+                    const newCatId = e.target.value ? Number(e.target.value) : '';
+                    setCategoryId(newCatId);
                     setSubcategoryId('');
+                    const selectedCatObj = categories.find((c) => c.id === newCatId);
+                    const isAcc = selectedCatObj?.name?.toLowerCase().includes('accommodat') || false;
+                    setIsSpreadAcrossTrip(isAcc);
                   }}
                 >
                   <option value="">-- Select Category --</option>
@@ -523,8 +537,54 @@ export const ExpenseModal: React.FC<ExpenseModalProps> = ({
               </div>
             </div>
 
+            {/* Accommodation Spread Across Trip Toggle (Exclusive to Accommodation) */}
+            {isAccommodation && (
+              <div
+                style={{
+                  marginTop: '1rem',
+                  padding: '0.85rem 1rem',
+                  borderRadius: 'var(--radius-md)',
+                  background: 'rgba(139, 92, 246, 0.08)',
+                  border: '1px solid rgba(139, 92, 246, 0.28)',
+                  display: 'flex',
+                  alignItems: 'flex-start',
+                  gap: '0.75rem',
+                  cursor: 'pointer',
+                  transition: 'all 0.2s ease',
+                }}
+                onClick={() => setIsSpreadAcrossTrip(!isSpreadAcrossTrip)}
+              >
+                <div style={{ paddingTop: '2px', color: '#8B5CF6' }}>
+                  <BedDouble size={20} />
+                </div>
+                <div style={{ flex: 1 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                    <span style={{ fontWeight: 600, fontSize: '0.9rem', color: 'var(--text-primary)' }}>
+                      Spread across entire trip
+                    </span>
+                    <input
+                      type="checkbox"
+                      id="isSpreadAcrossTrip"
+                      checked={isSpreadAcrossTrip}
+                      onChange={(e) => setIsSpreadAcrossTrip(e.target.checked)}
+                      onClick={(e) => e.stopPropagation()}
+                      style={{
+                        cursor: 'pointer',
+                        accentColor: '#8B5CF6',
+                        width: '18px',
+                        height: '18px',
+                      }}
+                    />
+                  </div>
+                  <div style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', marginTop: '0.25rem', lineHeight: 1.4 }}>
+                    Multi-day accommodation usually spans the trip. When enabled, this amount will be distributed evenly across all days in the daily spending timeline instead of spiking on a single date.
+                  </div>
+                </div>
+              </div>
+            )}
+
             {/* Comment / Notes */}
-            <div className="form-group" style={{ marginBottom: 0 }}>
+            <div className="form-group" style={{ marginBottom: 0, marginTop: '1rem' }}>
               <label className="form-label">Comment / Notes (Optional)</label>
               <textarea
                 className="form-textarea"

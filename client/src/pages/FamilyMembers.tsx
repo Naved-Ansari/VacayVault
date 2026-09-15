@@ -48,7 +48,7 @@ export const FamilyMembers: React.FC<FamilyMembersProps> = ({
         </div>
         <button className="btn btn-primary" onClick={onOpenCreateMember}>
           <Plus size={18} strokeWidth={2.5} />
-          <span>+ Add Family Member</span>
+          <span>Add Family Member</span>
         </button>
       </div>
 

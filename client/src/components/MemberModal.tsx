@@ -136,14 +136,29 @@ export const MemberModal: React.FC<MemberModalProps> = ({
             </div>
 
             <div className="form-group">
-              <label className="form-label">Role / Notes (Optional)</label>
-              <input
-                type="text"
+              <label className="form-label">Role</label>
+              <select
                 className="form-input"
-                placeholder="e.g. Self, Spouse, Eldest Child, Parent"
                 value={notes}
                 onChange={(e) => setNotes(e.target.value)}
-              />
+              >
+                <option value="">Select Role</option>
+                <option value="Self">Self</option>
+                <option value="Spouse">Spouse</option>
+                <option value="Father">Father</option>
+                <option value="Mother">Mother</option>
+                <option value="Son">Son</option>
+                <option value="Daughter">Daughter</option>
+                <option value="Brother">Brother</option>
+                <option value="Sister">Sister</option>
+                <option value="Grandfather">Grandfather</option>
+                <option value="Grandmother">Grandmother</option>
+                <option value="Uncle">Uncle</option>
+                <option value="Aunt">Aunt</option>
+                <option value="Cousin">Cousin</option>
+                <option value="Friend">Friend</option>
+                <option value="Other">Other</option>
+              </select>
             </div>
 
             <div className="form-group" style={{ marginBottom: 0 }}>

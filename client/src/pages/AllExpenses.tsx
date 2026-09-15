@@ -273,7 +273,26 @@ export const AllExpenses: React.FC<AllExpensesProps> = ({
                 {expenses.map((exp) => (
                   <tr key={exp.id}>
                     <td>
-                      <span className="row-title">{exp.name}</span>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', flexWrap: 'wrap' }}>
+                        <span className="row-title">{exp.name}</span>
+                        {exp.is_spread_across_trip && (
+                          <span
+                            className="badge"
+                            title="Accommodation cost spread evenly across all days in daily spending timeline"
+                            style={{
+                              fontSize: '0.68rem',
+                              padding: '0.1rem 0.45rem',
+                              background: 'rgba(139, 92, 246, 0.15)',
+                              color: '#8B5CF6',
+                              border: '1px solid rgba(139, 92, 246, 0.3)',
+                              borderRadius: '999px',
+                              fontWeight: 600,
+                            }}
+                          >
+                            Spread across trip
+                          </span>
+                        )}
+                      </div>
                       {exp.comment && <span className="row-comment">{exp.comment}</span>}
                     </td>
                     <td>
